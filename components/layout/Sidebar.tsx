@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils'
 import {
   BarChart3, CreditCard, LayoutDashboard, LogOut,
-  Moon, Repeat2, Settings, Shield, Sun, Target, Wallet, X,
+  Moon, Repeat2, Settings, Shield, Sun, Target, Users, Wallet, X,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -86,7 +86,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-          {[...navItems, ...(isAdmin ? [{ href: '/admin', label: 'Admin', labelEn: 'Admin Panel', icon: Shield }] : [])].map(({ href, label, labelEn, icon: Icon }) => {
+          {navItems.map(({ href, label, labelEn, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/')
             return (
               <Link
@@ -106,6 +106,38 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               </Link>
             )
           })}
+
+          {/* Admin section */}
+          {isAdmin && (
+            <div className="pt-2">
+              <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-600">
+                Admin
+              </p>
+              {[
+                { href: '/admin',       label: 'แดชบอร์ด', labelEn: 'Panel',    icon: Shield },
+                { href: '/admin/users', label: 'ผู้ใช้',    labelEn: 'Users',    icon: Users },
+              ].map(({ href, label, labelEn, icon: Icon }) => {
+                const active = pathname === href || pathname.startsWith(href + '/')
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={onClose}
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+                      active
+                        ? 'bg-violet-600 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-100'
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">{label}</span>
+                    {active && <span className="text-[10px] opacity-70 font-normal">{labelEn}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </nav>
 
         {/* Bottom */}

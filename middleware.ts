@@ -5,7 +5,8 @@ import { NextResponse } from 'next/server'
 /**
  * Middleware รันที่ Edge (ไม่นับ Serverless Function invocation)
  * → ป้องกัน protected routes และ refresh session อัตโนมัติ
- * → ลด round-trip ไม่ต้องเรียก API แยกเพื่อตรวจสอบ auth
+ * → ตรวจสอบ is_banned — redirect ไป /banned ถ้า account ถูกระงับ
+ * → ป้องกัน /admin/* — เฉพาะ admin role เท่านั้น
  */
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
@@ -31,22 +32,54 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const { pathname } = request.nextUrl
+
   const isAuthPage      = pathname.startsWith('/login') || pathname.startsWith('/register')
+  const isBannedPage    = pathname.startsWith('/banned')
+  const isAdminRoute    = pathname.startsWith('/admin') || pathname.startsWith('/api/admin')
   const isProtectedPage = pathname.startsWith('/dashboard') ||
-                          pathname.startsWith('/accounts')  ||
+                          pathname.startsWith('/accounts')   ||
                           pathname.startsWith('/transactions') ||
                           pathname.startsWith('/subscriptions') ||
-                          pathname.startsWith('/goals') ||
-                          pathname.startsWith('/settings')
+                          pathname.startsWith('/goals')       ||
+                          pathname.startsWith('/settings')   ||
+                          isAdminRoute
 
-  // ไม่ได้ login → redirect ไป login (ยกเว้น demo mode ที่ไม่มี Supabase)
-  if (isProtectedPage && !user && process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_project_url') {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // ── Not logged in → redirect to /login ───────────────────
+  if (isProtectedPage && !user) {
+    // Skip redirect in demo mode (no Supabase configured)
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_project_url') {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
   }
 
-  // login แล้ว พยายามเข้า auth page → redirect ไป dashboard
-  if (isAuthPage && user) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+  if (user) {
+    // ── Check profile status (ban + role) for authenticated users ──
+    // Only fetch for protected pages to avoid DB call on public routes
+    if (isProtectedPage && !isBannedPage) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, is_banned')
+        .eq('id', user.id)
+        .single()
+
+      // Banned user → send to /banned (allow /banned page itself)
+      if (profile?.is_banned) {
+        return NextResponse.redirect(new URL('/banned', request.url))
+      }
+
+      // Admin-only routes — check role
+      if (isAdminRoute && profile?.role !== 'admin') {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
+    }
+
+    // ── Banned page is accessible to logged-in banned users ──
+    // (they need to be able to log out from /banned)
+
+    // ── Logged in, trying to access auth page → redirect to dashboard ──
+    if (isAuthPage) {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
   }
 
   return response
