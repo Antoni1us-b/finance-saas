@@ -99,6 +99,20 @@ export interface Goal {
   progress?: number
 }
 
+// ── Notifications ─────────────────────────────────────────
+export type NotificationType = 'transaction' | 'goal' | 'subscription' | 'system'
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  message: string
+  is_read: boolean
+  link: string | null
+  created_at: string
+}
+
 // ── Utility ──────────────────────────────────────────────
 export interface DateRange {
   from: Date

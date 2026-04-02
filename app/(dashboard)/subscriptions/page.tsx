@@ -9,6 +9,7 @@ import { useAccounts } from '@/hooks/useAccounts'
 import { useSubscriptions } from '@/hooks/useSubscriptions'
 import type { BillingCycle, Subscription } from '@/lib/types'
 import { cn, formatCurrency, getDaysUntil } from '@/lib/utils'
+import { BrandIcon } from '@/lib/icon-mapper'
 import {
   AlertCircle, Bell, Calendar, Plus, Power, RefreshCw, Trash2,
 } from 'lucide-react'
@@ -267,12 +268,14 @@ export default function SubscriptionsPage() {
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="h-11 w-11 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0"
-                    style={{ background: sub.color }}
-                  >
-                    {sub.name.slice(0, 2).toUpperCase()}
-                  </div>
+                  {/* Brand-aware icon — recognizes Netflix, Spotify, iCloud, LINE MAN, etc. */}
+                  <BrandIcon
+                    name={sub.name}
+                    typeHint="subscription"
+                    colorOverride={sub.color}
+                    size="lg"
+                    className="shadow-sm"
+                  />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{sub.name}</p>
                     <p className="text-xs text-slate-400">{cycleLabels[sub.billing_cycle]}</p>

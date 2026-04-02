@@ -1,5 +1,6 @@
 'use client'
 import { createTransaction, deleteTransaction, getExpenseByCategory, getMonthlyStats, getRecentTransactions, getTransactions, type TransactionFilter, type TransactionInput } from '@/lib/supabase/transactions'
+import { createNotification } from '@/lib/supabase/notifications'
 import type { ExpenseByCategory, MonthlyStats, Transaction } from '@/lib/types'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -29,6 +30,16 @@ export function useTransactions(initialFilter: TransactionFilter = {}) {
   const add = useCallback(async (input: TransactionInput) => {
     const tx = await createTransaction(input)
     setData(prev => [tx, ...prev]); setTotal(t => t + 1)
+
+    // Fire-and-forget notification (non-blocking)
+    const typeLabel = input.type === 'income' ? 'รายได้' : input.type === 'expense' ? 'รายจ่าย' : 'โอนเงิน'
+    createNotification({
+      type:    'transaction',
+      title:   `บันทึก${typeLabel}สำเร็จ`,
+      message: `${input.type === 'income' ? '+' : input.type === 'expense' ? '-' : ''}฿${Number(input.amount).toLocaleString('th-TH')}${input.note ? ` · ${input.note}` : ''}`,
+      link:    '/transactions',
+    }).catch(() => { /* notifications are non-critical */ })
+
     return tx
   }, [])
 

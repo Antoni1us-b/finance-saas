@@ -7,19 +7,15 @@ import { Modal } from '@/components/ui/Modal'
 import { useAccounts } from '@/hooks/useAccounts'
 import type { AccountInput } from '@/lib/supabase/accounts'
 import type { AccountType } from '@/lib/types'
+import { BrandIcon } from '@/lib/icon-mapper'
 import { cn, formatCurrency } from '@/lib/utils'
 import {
-  AlertCircle, Building2, CreditCard, Edit2,
-  Loader2, Plus, RefreshCw, SmartphoneIcon,
-  TrendingUp, Wallet,
+  AlertCircle, Edit2,
+  Loader2, Plus, RefreshCw, Wallet,
 } from 'lucide-react'
 import { useState } from 'react'
 
 // ── Config ────────────────────────────────────────────────────
-const typeIcons: Record<AccountType, React.ElementType> = {
-  bank: Building2, credit: CreditCard, investment: TrendingUp,
-  cash: Wallet, 'e-wallet': SmartphoneIcon,
-}
 const typeLabels: Record<AccountType, string> = {
   bank: 'ธนาคาร', credit: 'บัตรเครดิต', investment: 'การลงทุน',
   cash: 'เงินสด', 'e-wallet': 'กระเป๋าเงินดิจิทัล',
@@ -159,19 +155,20 @@ export default function AccountsPage() {
 
         {/* Cards */}
         {!loading && accounts.map((acc) => {
-          const Icon = typeIcons[acc.type]
           const isNegative = acc.balance < 0
           return (
             <Card key={acc.id} hover className="relative group">
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div
-                    className="h-11 w-11 rounded-2xl flex items-center justify-center text-white shadow-sm shrink-0"
-                    style={{ background: acc.color }}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
+                  {/* Brand-aware icon — uses account name to pick bank logo/color */}
+                  <BrandIcon
+                    name={acc.name}
+                    typeHint={acc.type}
+                    colorOverride={acc.color}
+                    size="lg"
+                    className="shadow-sm"
+                  />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">{acc.name}</p>
                     <p className="text-xs text-slate-400">{typeLabels[acc.type]}</p>

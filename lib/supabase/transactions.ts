@@ -57,6 +57,8 @@ export async function getTransactions(filters: TransactionFilter = {}) {
   if (filters.account_id)  query = query.eq('account_id', filters.account_id)
   if (filters.from)        query = query.gte('date', filters.from)
   if (filters.to)          query = query.lte('date', filters.to)
+  // Server-side search on the note field (category search remains client-side)
+  if (filters.search)      query = query.ilike('note', `%${filters.search}%`)
 
   const { data, error, count } = await query
   if (error) throw error
