@@ -9,6 +9,21 @@ import { NextResponse } from 'next/server'
  * → ป้องกัน /admin/* — เฉพาะ admin role เท่านั้น
  */
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // ── Public routes — skip Supabase call entirely ────────────
+  // Landing page, API health, demo provisioning, /banned need no auth check.
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname.startsWith('/api/demo') ||
+    pathname.startsWith('/api/health') ||
+    pathname.startsWith('/banned')
+
+  if (isPublicRoute) {
+    return NextResponse.next({ request })
+  }
+
+  // ── Create Supabase client for session refresh ─────────────
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -30,8 +45,6 @@ export async function middleware(request: NextRequest) {
 
   // ✅ refresh session ก่อนตรวจสอบ (สำคัญมาก)
   const { data: { user } } = await supabase.auth.getUser()
-
-  const { pathname } = request.nextUrl
 
   const isAuthPage      = pathname.startsWith('/login') || pathname.startsWith('/register')
   const isBannedPage    = pathname.startsWith('/banned')

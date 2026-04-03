@@ -33,12 +33,7 @@ const nextConfig: NextConfig = {
     ]
   },
 
-  // ✅ Redirect root → dashboard
-  async redirects() {
-    return [
-      { source: '/', destination: '/dashboard', permanent: false },
-    ]
-  },
+  // Landing page is now at / — no root redirect needed
 }
 
 export default nextConfig

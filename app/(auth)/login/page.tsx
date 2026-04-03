@@ -3,17 +3,21 @@
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { createClient } from '@/lib/supabase/client'
-import { CreditCard } from 'lucide-react'
+import { CreditCard, Play } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+const DEMO_EMAIL    = 'demo@finflow.com'
+const DEMO_PASSWORD = 'demo1234'
+
 export default function LoginPage() {
   const router = useRouter()
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [email, setEmail]         = useState('')
+  const [password, setPassword]   = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const [error, setError]         = useState('')
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -23,6 +27,27 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError(error.message); setLoading(false); return }
     router.push('/dashboard')
+  }
+
+  async function handleDemoLogin() {
+    setDemoLoading(true)
+    setError('')
+    try {
+      const supabase = createClient()
+
+      // Ensure demo account exists (creates if missing, idempotent)
+      await fetch('/api/demo/ensure-account', { method: 'POST' })
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: DEMO_EMAIL,
+        password: DEMO_PASSWORD,
+      })
+      if (error) throw error
+      router.push('/dashboard')
+    } catch (err: any) {
+      setError(err.message ?? 'ไม่สามารถเข้าสู่ระบบ Demo ได้ กรุณาลองใหม่')
+      setDemoLoading(false)
+    }
   }
 
   return (
@@ -73,14 +98,20 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Demo shortcut */}
+          {/* Demo shortcut — actually signs in with demo credentials */}
           <Button
             variant="outline"
-            className="w-full"
-            onClick={() => router.push('/dashboard')}
+            className="w-full gap-2"
+            loading={demoLoading}
+            onClick={handleDemoLogin}
           >
+            <Play className="h-4 w-4" />
             ทดลองใช้งาน (Demo)
           </Button>
+
+          <p className="text-center text-[11px] text-slate-400 mt-2">
+            demo@finflow.com / demo1234
+          </p>
         </div>
 
         <p className="text-center text-sm text-slate-500 mt-5">
