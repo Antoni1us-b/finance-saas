@@ -5,13 +5,16 @@ import { ChevronRight } from 'lucide-react'
 import React, {
   createContext, useContext, useEffect, useRef, useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 
 // ── Context ───────────────────────────────────────────────────
 interface DropdownCtx {
   open: boolean
   setOpen: (v: boolean) => void
+  /** Ref to the root wrapper — used by Content to anchor the portal */
+  anchorRef: React.RefObject<HTMLDivElement | null>
 }
-const Ctx = createContext<DropdownCtx>({ open: false, setOpen: () => {} })
+const Ctx = createContext<DropdownCtx>({ open: false, setOpen: () => {}, anchorRef: { current: null } })
 
 // ── Root ──────────────────────────────────────────────────────
 interface DropdownMenuProps {
@@ -33,10 +36,15 @@ export function DropdownMenu({ children, open: controlledOpen, onOpenChange }: D
 
   const ref = useRef<HTMLDivElement>(null)
 
-  // Close on outside click
+  // Close on outside click — check both anchor and portal content
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      // Don't close if click is inside the anchor
+      if (ref.current?.contains(target)) return
+      // Don't close if click is inside a portaled dropdown
+      if ((target as Element).closest?.('[data-dropdown-portal]')) return
+      setOpen(false)
     }
     if (open) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -52,7 +60,7 @@ export function DropdownMenu({ children, open: controlledOpen, onOpenChange }: D
   }, [])
 
   return (
-    <Ctx.Provider value={{ open, setOpen }}>
+    <Ctx.Provider value={{ open, setOpen, anchorRef: ref }}>
       <div ref={ref} className="relative inline-block">
         {children}
       </div>
@@ -85,7 +93,7 @@ export function DropdownMenuTrigger({ children, asChild }: DropdownMenuTriggerPr
   )
 }
 
-// ── Content ───────────────────────────────────────────────────
+// ── Content (portaled to body to avoid overflow clipping) ─────
 type Align = 'start' | 'center' | 'end'
 type Side  = 'top' | 'bottom'
 
@@ -97,17 +105,6 @@ interface DropdownMenuContentProps {
   minWidth?: string
 }
 
-const alignClass: Record<Align, string> = {
-  start:  'left-0',
-  center: 'left-1/2 -translate-x-1/2',
-  end:    'right-0',
-}
-
-const sideClass: Record<Side, string> = {
-  bottom: 'top-full mt-1',
-  top:    'bottom-full mb-1',
-}
-
 export function DropdownMenuContent({
   children,
   align = 'end',
@@ -115,24 +112,95 @@ export function DropdownMenuContent({
   className,
   minWidth = '11rem',
 }: DropdownMenuContentProps) {
-  const { open } = useContext(Ctx)
-  if (!open) return null
+  const { open, anchorRef } = useContext(Ctx)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
-  return (
+  // Calculate position from anchor element
+  useEffect(() => {
+    if (!open || !anchorRef.current) { setPos(null); return }
+
+    function update() {
+      const rect = anchorRef.current!.getBoundingClientRect()
+      const scrollX = window.scrollX
+      const scrollY = window.scrollY
+
+      let top = side === 'top'
+        ? scrollY + rect.top
+        : scrollY + rect.bottom + 4              // 4px gap
+
+      let left: number
+      if (align === 'end') {
+        left = scrollX + rect.right              // right-align: will be shifted by CSS right:0 trick below
+      } else if (align === 'center') {
+        left = scrollX + rect.left + rect.width / 2
+      } else {
+        left = scrollX + rect.left
+      }
+
+      setPos({ top, left })
+    }
+
+    update()
+    window.addEventListener('scroll', update, true)   // capture to catch inner scrolls
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open, side, align])
+
+  // After render, clamp the dropdown so it doesn't overflow the viewport
+  useEffect(() => {
+    if (!open || !contentRef.current || !pos) return
+    const el = contentRef.current
+    const rect = el.getBoundingClientRect()
+
+    // Prevent overflowing right edge
+    if (rect.right > window.innerWidth - 8) {
+      el.style.left = `${window.innerWidth - rect.width - 8 + window.scrollX}px`
+    }
+    // Prevent overflowing bottom — flip to top if needed
+    if (rect.bottom > window.innerHeight - 8) {
+      const anchorRect = anchorRef.current!.getBoundingClientRect()
+      el.style.top = `${window.scrollY + anchorRect.top - rect.height - 4}px`
+    }
+  }, [pos, open])
+
+  if (!open || !pos) return null
+
+  const transformOrigin = side === 'top' ? 'bottom' : 'top'
+
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    top: pos.top,
+    // For 'end' alignment, anchor to right edge; for 'start' anchor to left
+    ...(align === 'end'
+      ? { right: undefined, left: pos.left, transform: 'translateX(-100%)' }
+      : align === 'center'
+        ? { left: pos.left, transform: 'translateX(-50%)' }
+        : { left: pos.left }),
+    minWidth,
+    transformOrigin,
+    zIndex: 9999,
+  }
+
+  return createPortal(
     <div
-      style={{ minWidth }}
+      ref={contentRef}
+      data-dropdown-portal
+      style={style}
       className={cn(
-        'absolute z-50 rounded-xl border border-slate-100 dark:border-slate-800',
+        'rounded-xl border border-slate-100 dark:border-slate-800',
         'bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/60 dark:shadow-slate-900/60',
         'py-1 overflow-hidden',
         'animate-in fade-in slide-in-from-top-1 duration-100',
-        alignClass[align],
-        sideClass[side],
         className,
       )}
     >
       {children}
-    </div>
+    </div>,
+    document.body,
   )
 }
 

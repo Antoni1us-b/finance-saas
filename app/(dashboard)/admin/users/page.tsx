@@ -10,7 +10,7 @@ import {
 import { Modal } from '@/components/ui/Modal'
 import { cn } from '@/lib/utils'
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, KeyRound, Loader2,
+  AlertTriangle, CheckCircle2, KeyRound, Loader2,
   MoreHorizontal, RefreshCw, Search, Shield, Trash2,
   UserCheck, UserX, Users,
 } from 'lucide-react'
@@ -254,12 +254,24 @@ export default function AdminUsersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800">
-                {['ผู้ใช้', 'สิทธิ์', 'สถานะ', 'เข้าใช้ล่าสุด', 'สมัครเมื่อ', 'บัญชี', 'รายการ', ''].map(h => (
+                {[
+                  { label: 'ผู้ใช้',       responsive: '' },
+                  { label: 'สิทธิ์',       responsive: '' },
+                  { label: 'สถานะ',        responsive: '' },
+                  { label: 'เข้าใช้ล่าสุด', responsive: 'hidden lg:table-cell' },
+                  { label: 'สมัครเมื่อ',    responsive: 'hidden lg:table-cell' },
+                  { label: 'บัญชี',        responsive: 'hidden md:table-cell' },
+                  { label: 'รายการ',       responsive: 'hidden md:table-cell' },
+                  { label: '',             responsive: '' },
+                ].map(({ label, responsive }) => (
                   <th
-                    key={h}
-                    className="text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap"
+                    key={label}
+                    className={cn(
+                      'text-left px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap',
+                      responsive,
+                    )}
                   >
-                    {h}
+                    {label}
                   </th>
                 ))}
               </tr>
@@ -277,11 +289,30 @@ export default function AdminUsersPage() {
                       </div>
                     </div>
                   </td>
-                  {Array.from({ length: 6 }).map((_, j) => (
-                    <td key={j} className="px-4 py-3">
-                      <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
-                    </td>
-                  ))}
+                  {/* Role */}
+                  <td className="px-4 py-3">
+                    <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
+                  </td>
+                  {/* Status */}
+                  <td className="px-4 py-3">
+                    <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
+                  </td>
+                  {/* Last sign in — hidden on mobile */}
+                  <td className="hidden lg:table-cell px-4 py-3">
+                    <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
+                  </td>
+                  {/* Created at — hidden on mobile */}
+                  <td className="hidden lg:table-cell px-4 py-3">
+                    <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
+                  </td>
+                  {/* Accounts — hidden on mobile */}
+                  <td className="hidden md:table-cell px-4 py-3">
+                    <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
+                  </td>
+                  {/* Transactions — hidden on mobile */}
+                  <td className="hidden md:table-cell px-4 py-3">
+                    <div className="h-4 w-16 bg-slate-100 dark:bg-slate-800 rounded" />
+                  </td>
                   <td className="px-4 py-3">
                     <div className="h-7 w-7 bg-slate-100 dark:bg-slate-800 rounded-lg ml-auto" />
                   </td>
@@ -342,23 +373,23 @@ export default function AdminUsersPage() {
                       )}
                     </td>
 
-                    {/* Last sign in */}
-                    <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+                    {/* Last sign in — hidden below lg */}
+                    <td className="hidden lg:table-cell px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                       {fmtDate(user.last_sign_in_at)}
                     </td>
 
-                    {/* Created at */}
-                    <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+                    {/* Created at — hidden below lg */}
+                    <td className="hidden lg:table-cell px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
                       {fmtDate(user.created_at)}
                     </td>
 
-                    {/* Accounts */}
-                    <td className="px-4 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300">
+                    {/* Accounts — hidden below md */}
+                    <td className="hidden md:table-cell px-4 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300">
                       {user.accounts_count}
                     </td>
 
-                    {/* Transactions */}
-                    <td className="px-4 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300">
+                    {/* Transactions — hidden below md */}
+                    <td className="hidden md:table-cell px-4 py-3 text-center tabular-nums text-slate-600 dark:text-slate-300">
                       {user.tx_count}
                     </td>
 
