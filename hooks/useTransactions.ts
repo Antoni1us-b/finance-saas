@@ -1,5 +1,5 @@
 'use client'
-import { createTransaction, deleteTransaction, getExpenseByCategory, getMonthlyStats, getRecentTransactions, getTransactions, type TransactionFilter, type TransactionInput } from '@/lib/supabase/transactions'
+import { createTransaction, deleteTransaction, updateTransaction, getExpenseByCategory, getMonthlyStats, getRecentTransactions, getTransactions, type TransactionFilter, type TransactionInput } from '@/lib/supabase/transactions'
 import { createNotification } from '@/lib/supabase/notifications'
 import type { ExpenseByCategory, MonthlyStats, Transaction } from '@/lib/types'
 import { useCallback, useEffect, useState } from 'react'
@@ -43,12 +43,18 @@ export function useTransactions(initialFilter: TransactionFilter = {}) {
     return tx
   }, [])
 
+  const update = useCallback(async (id: string, input: Partial<TransactionInput>) => {
+    const updated = await updateTransaction(id, input)
+    setData(prev => prev.map(t => t.id === id ? updated : t))
+    return updated
+  }, [])
+
   const remove = useCallback(async (id: string) => {
     await deleteTransaction(id)
     setData(prev => prev.filter(t => t.id !== id)); setTotal(t => t - 1)
   }, [])
 
-  return { data, total, loading, error, filter, applyFilter, refetch: fetch, add, remove }
+  return { data, total, loading, error, filter, applyFilter, refetch: fetch, add, update, remove }
 }
 
 export function useMonthlyStats(months = 6) {

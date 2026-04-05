@@ -169,6 +169,27 @@ export async function createTransaction(input: TransactionInput): Promise<Transa
   return data as unknown as Transaction
 }
 
+// ── UPDATE ────────────────────────────────────────────────────
+export async function updateTransaction(
+  id: string,
+  input: Partial<TransactionInput>,
+): Promise<Transaction> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .update(input)
+    .eq('id', id)
+    .eq('user_id', user.id)          // RLS safety — can only update own rows
+    .select(TX_SELECT)
+    .single()
+
+  if (error) throw error
+  return data as unknown as Transaction
+}
+
 // ── DELETE ────────────────────────────────────────────────────
 export async function deleteTransaction(id: string): Promise<void> {
   const supabase = createClient()

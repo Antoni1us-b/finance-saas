@@ -3,18 +3,22 @@
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu'
 import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useCategories } from '@/hooks/useCategories'
 import { useTransactions } from '@/hooks/useTransactions'
-import type { TransactionType } from '@/lib/types'
+import type { Transaction, TransactionType } from '@/lib/types'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import {
   AlertCircle, ArrowDownLeft, ArrowLeftRight, ArrowUpRight,
-  Loader2, Plus, RefreshCw, Search, Trash2,
+  Loader2, MoreHorizontal, Pencil, Plus, RefreshCw, Search, Trash2,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 // ── Config ────────────────────────────────────────────────────
 const TYPE_FILTERS: { label: string; value: '' | TransactionType }[] = [
@@ -42,6 +46,27 @@ const typeIcons: Record<TransactionType, React.ElementType> = {
   transfer: ArrowLeftRight,
 }
 
+// ── Quick-fill chips ──────────────────────────────────────────
+interface QuickChip {
+  emoji:       string
+  label:       string
+  note:        string
+  categoryKey: string       // matches Category.name (English) for auto-select
+  type:        TransactionType
+}
+
+const QUICK_CHIPS: QuickChip[] = [
+  { emoji: '☕', label: 'กาแฟ',         note: 'กาแฟ',               categoryKey: 'Food & Drink',  type: 'expense' },
+  { emoji: '🍱', label: 'อาหาร',        note: 'ค่าอาหาร',           categoryKey: 'Food & Drink',  type: 'expense' },
+  { emoji: '⛽', label: 'เติมน้ำมัน',    note: 'เติมน้ำมัน',          categoryKey: 'Transport',     type: 'expense' },
+  { emoji: '🛒', label: 'ซื้อของ',       note: 'ซื้อของเข้าบ้าน',     categoryKey: 'Shopping',      type: 'expense' },
+  { emoji: '🏠', label: 'ค่าเช่า',      note: 'ค่าเช่าบ้าน',         categoryKey: 'Housing',       type: 'expense' },
+  { emoji: '💊', label: 'สุขภาพ',       note: 'ค่ายา / ค่าหมอ',     categoryKey: 'Health',        type: 'expense' },
+  { emoji: '💰', label: 'เงินเดือน',    note: 'เงินเดือน',           categoryKey: 'Salary',        type: 'income' },
+  { emoji: '💻', label: 'ฟรีแลนซ์',     note: 'งาน Freelance',      categoryKey: 'Freelance',     type: 'income' },
+]
+
+// ── Form types ────────────────────────────────────────────────
 interface TxForm {
   type:          TransactionType
   amount:        number | ''
@@ -72,8 +97,8 @@ function TxRowSkeleton() {
     <tr className="animate-pulse">
       <td className="px-4 py-3"><div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded" /></td>
       <td className="px-4 py-3"><div className="h-4 w-36 bg-slate-200 dark:bg-slate-700 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" /></td>
-      <td className="px-4 py-3"><div className="h-5 w-14 bg-slate-200 dark:bg-slate-700 rounded-full" /></td>
+      <td className="hidden md:table-cell px-4 py-3"><div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded" /></td>
+      <td className="hidden sm:table-cell px-4 py-3"><div className="h-5 w-14 bg-slate-200 dark:bg-slate-700 rounded-full" /></td>
       <td className="px-4 py-3 text-right"><div className="h-4 w-20 bg-slate-200 dark:bg-slate-700 rounded ml-auto" /></td>
       <td className="px-4 py-3"><div className="h-7 w-7 bg-slate-200 dark:bg-slate-700 rounded-lg ml-auto" /></td>
     </tr>
@@ -82,7 +107,7 @@ function TxRowSkeleton() {
 
 // ── Page ──────────────────────────────────────────────────────
 export default function TransactionsPage() {
-  const { data: transactions, loading, error, refetch, add, remove } = useTransactions()
+  const { data: transactions, loading, error, refetch, add, update, remove } = useTransactions()
   const { accounts } = useAccounts()
   const { categories } = useCategories()
 
@@ -90,10 +115,13 @@ export default function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState<'' | TransactionType>('')
   const [catFilter,  setCatFilter]  = useState('')
   const [modalOpen,  setModalOpen]  = useState(false)
+  const [editingTx,  setEditingTx]  = useState<Transaction | null>(null)
   const [saving,     setSaving]     = useState(false)
   const [deleting,   setDeleting]   = useState<string | null>(null)
   const [saveError,  setSaveError]  = useState('')
   const [form,       setForm]       = useState<TxForm>(defaultForm)
+
+  const isEditing = editingTx !== null
 
   // ── Derived ─────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -116,7 +144,24 @@ export default function TransactionsPage() {
 
   // ── Form helpers ─────────────────────────────────────────────
   function openCreate() {
-    setForm({ ...defaultForm, account_id: accounts[0]?.id ?? '' })
+    setEditingTx(null)
+    setForm({ ...defaultForm, date: today, account_id: accounts[0]?.id ?? '' })
+    setSaveError('')
+    setModalOpen(true)
+  }
+
+  function openEdit(tx: Transaction) {
+    setEditingTx(tx)
+    setForm({
+      type:          tx.type,
+      amount:        tx.amount,
+      date:          tx.date,
+      account_id:    tx.account_id,
+      to_account_id: tx.to_account_id ?? '',
+      category_id:   tx.category_id ?? '',
+      note:          tx.note ?? '',
+      tags:          tx.tags?.join(', ') ?? '',
+    })
     setSaveError('')
     setModalOpen(true)
   }
@@ -128,18 +173,26 @@ export default function TransactionsPage() {
     if (form.type === 'transfer' && !form.to_account_id) { setSaveError('กรุณาเลือกบัญชีปลายทาง'); return }
     setSaving(true)
     setSaveError('')
+
+    const payload = {
+      type:          form.type,
+      amount:        Number(form.amount),
+      date:          form.date,
+      account_id:    form.account_id,
+      to_account_id: form.type === 'transfer' ? form.to_account_id || null : null,
+      category_id:   form.category_id || null,
+      note:          form.note.trim() || null,
+      tags:          form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+    }
+
     try {
-      await add({
-        type:          form.type,
-        amount:        Number(form.amount),
-        date:          form.date,
-        account_id:    form.account_id,
-        to_account_id: form.type === 'transfer' ? form.to_account_id || null : null,
-        category_id:   form.category_id || null,
-        note:          form.note.trim() || null,
-        tags:          form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-      })
+      if (isEditing) {
+        await update(editingTx.id, payload)
+      } else {
+        await add(payload)
+      }
       setModalOpen(false)
+      setEditingTx(null)
     } catch (e: any) {
       setSaveError(e.message ?? 'บันทึกไม่สำเร็จ')
     } finally {
@@ -162,6 +215,21 @@ export default function TransactionsPage() {
     if (form.type === 'transfer') return []
     return categories.filter(c => c.type === form.type || c.type === 'both')
   }, [form.type, categories])
+
+  // ── Quick chip handler ──────────────────────────────────────
+  const applyQuickChip = useCallback((chip: QuickChip) => {
+    const matchedCat = categories.find(c => c.name === chip.categoryKey)
+    setForm(f => ({
+      ...f,
+      type:        chip.type,
+      note:        chip.note,
+      category_id: matchedCat?.id ?? f.category_id,
+    }))
+  }, [categories])
+
+  const quickChipsForType = useMemo(() => {
+    return QUICK_CHIPS.filter(c => c.type === form.type)
+  }, [form.type])
 
   // ── Render ─────────────────────────────────────────────────
   return (
@@ -214,13 +282,13 @@ export default function TransactionsPage() {
         </div>
 
         {/* Type filter pills */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1.5 overflow-x-auto">
           {TYPE_FILTERS.map(f => (
             <button
               key={f.value}
               onClick={() => setTypeFilter(f.value)}
               className={cn(
-                'px-3 h-10 rounded-xl text-sm font-medium transition-colors',
+                'px-3 h-10 rounded-xl text-sm font-medium transition-colors whitespace-nowrap',
                 typeFilter === f.value
                   ? 'bg-brand-600 text-white shadow-sm'
                   : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -244,7 +312,7 @@ export default function TransactionsPage() {
         </select>
 
         <Button size="md" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> เพิ่มรายการ
+          <Plus className="h-4 w-4" /> <span className="hidden sm:inline">เพิ่มรายการ</span><span className="sm:hidden">เพิ่ม</span>
         </Button>
       </div>
 
@@ -256,8 +324,8 @@ export default function TransactionsPage() {
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">วันที่</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">รายการ</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">บัญชี</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">ประเภท</th>
+                <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">บัญชี</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">ประเภท</th>
                 <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">จำนวนเงิน</th>
                 <th className="px-4 py-3 w-12" />
               </tr>
@@ -273,6 +341,7 @@ export default function TransactionsPage() {
                 const catLabel = tx.category?.name_th ?? tx.category?.name ?? '—'
                 const isNegative = tx.type === 'expense'
                 const isTransfer = tx.type === 'transfer'
+                const isActing = deleting === tx.id
                 return (
                   <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group">
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
@@ -295,6 +364,12 @@ export default function TransactionsPage() {
                           {tx.note && tx.category && (
                             <p className="text-xs text-slate-400 truncate">{catLabel}</p>
                           )}
+                          {/* Show type badge inline on mobile (hidden in its own column) */}
+                          <div className="sm:hidden mt-0.5">
+                            <Badge variant={typeBadgeVariant[tx.type]} dot>
+                              {typeLabels[tx.type]}
+                            </Badge>
+                          </div>
                           {tx.tags && tx.tags.length > 0 && (
                             <div className="flex gap-1 mt-0.5 flex-wrap">
                               {tx.tags.slice(0, 3).map(tag => (
@@ -307,13 +382,13 @@ export default function TransactionsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                    <td className="hidden md:table-cell px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                       {tx.account?.name ?? '—'}
                       {isTransfer && tx.to_account && (
                         <span className="text-slate-400 ml-1">→ {tx.to_account.name}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="hidden sm:table-cell px-4 py-3">
                       <Badge variant={typeBadgeVariant[tx.type]} dot>
                         {typeLabels[tx.type]}
                       </Badge>
@@ -326,18 +401,36 @@ export default function TransactionsPage() {
                     )}>
                       {isNegative ? '−' : isTransfer ? '' : '+'}{formatCurrency(tx.amount)}
                     </td>
+
+                    {/* Actions dropdown */}
                     <td className="px-4 py-3">
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950"
-                        disabled={deleting === tx.id}
-                        onClick={() => handleDelete(tx.id)}
-                      >
-                        {deleting === tx.id
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : <Trash2 className="h-3.5 w-3.5" />
-                        }
-                      </Button>
+                      {isActing ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-slate-400 ml-auto" />
+                      ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ml-auto sm:opacity-0 sm:group-hover:opacity-100">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" minWidth="10rem">
+                            <DropdownMenuItem
+                              icon={Pencil}
+                              onClick={() => openEdit(tx)}
+                            >
+                              แก้ไข
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              icon={Trash2}
+                              destructive
+                              onClick={() => handleDelete(tx.id)}
+                            >
+                              ลบรายการ
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </td>
                   </tr>
                 )
@@ -372,11 +465,11 @@ export default function TransactionsPage() {
         )}
       </Card>
 
-      {/* ── Add Modal ── */}
+      {/* ── Add / Edit Modal ── */}
       <Modal
         open={modalOpen}
-        onClose={() => { if (!saving) setModalOpen(false) }}
-        title="เพิ่มรายการใหม่"
+        onClose={() => { if (!saving) { setModalOpen(false); setEditingTx(null) } }}
+        title={isEditing ? 'แก้ไขรายการ' : 'เพิ่มรายการใหม่'}
         size="md"
       >
         <div className="space-y-4">
@@ -402,9 +495,33 @@ export default function TransactionsPage() {
             ))}
           </div>
 
+          {/* Quick-fill chips */}
+          {quickChipsForType.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+              {quickChipsForType.map(chip => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => applyQuickChip(chip)}
+                  className={cn(
+                    'shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                    'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800',
+                    'text-slate-600 dark:text-slate-300',
+                    'hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-950 hover:text-brand-700 dark:hover:text-brand-300',
+                    'active:scale-95',
+                  )}
+                >
+                  <span>{chip.emoji}</span>
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           <Input
             label="จำนวนเงิน (฿)"
             type="number"
+            inputMode="decimal"
             step="0.01"
             min="0"
             placeholder="0.00"
@@ -479,13 +596,13 @@ export default function TransactionsPage() {
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2 justify-end">
-            <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>
+          {/* Actions — sticky on mobile via the modal's scroll container */}
+          <div className="flex gap-3 pt-2 justify-end sticky bottom-0 bg-white dark:bg-slate-900 pb-1">
+            <Button variant="outline" onClick={() => { setModalOpen(false); setEditingTx(null) }} disabled={saving}>
               ยกเลิก
             </Button>
             <Button loading={saving} onClick={handleSave}>
-              บันทึกรายการ
+              {isEditing ? 'บันทึกการแก้ไข' : 'บันทึกรายการ'}
             </Button>
           </div>
         </div>
