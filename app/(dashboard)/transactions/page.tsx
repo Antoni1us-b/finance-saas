@@ -6,8 +6,8 @@ import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { useAccounts } from '@/hooks/useAccounts'
+import { useCategories } from '@/hooks/useCategories'
 import { useTransactions } from '@/hooks/useTransactions'
-import { dummyCategories } from '@/lib/data/dummy'
 import type { TransactionType } from '@/lib/types'
 import { cn, formatCurrency, formatDate } from '@/lib/utils'
 import {
@@ -84,6 +84,7 @@ function TxRowSkeleton() {
 export default function TransactionsPage() {
   const { data: transactions, loading, error, refetch, add, remove } = useTransactions()
   const { accounts } = useAccounts()
+  const { categories } = useCategories()
 
   const [search,     setSearch]     = useState('')
   const [typeFilter, setTypeFilter] = useState<'' | TransactionType>('')
@@ -159,8 +160,8 @@ export default function TransactionsPage() {
 
   const categoriesForType = useMemo(() => {
     if (form.type === 'transfer') return []
-    return dummyCategories.filter(c => c.type === form.type || c.type === 'both')
-  }, [form.type])
+    return categories.filter(c => c.type === form.type || c.type === 'both')
+  }, [form.type, categories])
 
   // ── Render ─────────────────────────────────────────────────
   return (
@@ -237,7 +238,7 @@ export default function TransactionsPage() {
           className="h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">ทุกหมวดหมู่</option>
-          {dummyCategories.map(c => (
+          {categories.map(c => (
             <option key={c.id} value={c.id}>{c.name_th ?? c.name}</option>
           ))}
         </select>
